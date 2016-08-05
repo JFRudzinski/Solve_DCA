@@ -30,6 +30,7 @@ flag_bndry_cond = False
 bndry_cond_path = ''
 tol = 1e-2
 max_steps = 10
+end_state = 1 # 1 betas / 0 helices at the ends
 
 # fixed variables
 S2 = [0,1]
@@ -390,9 +391,60 @@ for res in range(Nres-(Ncorr-1)):
 
 
 # specify the boundary conditions
-eqns_bndry_cond = []
+#eqns_bndry_cond = []
 inp_bndry_cond_stat = {} # try using a dic for the bndry instead of solving the equations
 # now, relate the kp1res static prop ## JFR - This is quite confusing, I should double check it
+
+
+# also define the boundaries
+
+# the kp1 stat dist
+for res in range(2*Ncorr):
+    for s1 in range(len(states_kp1res)):
+        var = Pkp1res_stat_end[res][s1]
+        tmp = 0.
+        if ( res < Ncorr ):
+            Nshift = res
+            Nsum = (Ncorr-1)-Nshift
+            if ( Nsum == 0 ):
+                ind = np.where( np.all(states_kres==states_kp1res[s1][1:],axis=1) == True )[0][0]
+                tmp += Pkres_stat[0][ind]
+            else:
+                states = get_poss_states(Nsum)
+                for state in states:
+                    Nfixed = Nsum+Nshift
+                    state_full = np.hstack( (states_kp1res[s1][Nfixed+1:],state) )
+                    ind = np.where( np.all(states_kres==state_full,axis=1) == True )[0][0]
+                    tmp += Pkres_stat[0][ind]
+            end_fact = 1.
+            for ends in range(Nsum+1):
+                if ( states_kp1res[s1][ends] == end_state ):
+                    end_fact *= 1.
+                else:
+                    end_fact *= 0.
+            inp_bndry_cond_stat[var] = end_fact*tmp
+        else:
+            Nshift = 2*Ncorr-1-res
+            Nsum = (Ncorr-1)-Nshift
+            if ( Nsum == 0 ):
+                ind = np.where( np.all(states_kres==states_kp1res[s1][:-1],axis=1) == True )[0][0]
+                tmp += Pkres_stat[Nres-(Ncorr-1)-1][ind]
+            else:
+                states = get_poss_states(Nsum)
+                for state in states:
+                    Nfixed = Nsum+Nshift
+                    state_full = np.hstack( (state,states_kp1res[s1][:Nfixed]) )
+                    ind = np.where( np.all(states_kres==state_full,axis=1) == True )[0][0]
+                    tmp += Pkres_stat[Nres-(Ncorr-1)-1][ind]
+            end_fact = 1.
+            for ends in range(Nsum+1):
+                if ( states_kp1res[s1][-1-ends] == end_state ):
+                    end_fact *= 1.
+                else:
+                    end_fact *= 0.
+            inp_bndry_cond_stat[var] = end_fact*tmp
+
+'''
 for res in range(2*Ncorr):
     for s1 in range(len(states_kp1res)):
         var = Pkp1res_stat_end[res][s1]
@@ -444,9 +496,73 @@ for res in range(2*Ncorr):
                 P1_e0 = 1.
             eqns_bndry_cond.append( var - tmp*P1_e0*P1_e1 )
             inp_bndry_cond_stat[var] = tmp*P1_e0*P1_e1
+'''
+
 
 # and the kp1 res cond prob
 inp_bndry_cond = {} # separate the cond prob from the static prob boundary conditions
+for res in range(2*Ncorr):
+    for s1 in range(len(states_kp1res)):
+        for s2 in range(len(states_kp1res)):
+            var = Pkp1res_end[res][s1][s2]
+            tmp = 0.
+            tmp_stat = 0.
+            if ( res < Ncorr ):
+                Nshift = res
+                Nsum = (Ncorr-1)-Nshift
+                Nfixed = Nsum+Nshift
+                if ( Nsum == 0 ):
+                    ind = np.where( np.all(states_kres==states_kp1res[s1][1:],axis=1) == True )[0][0]
+                    indp = np.where( np.all(states_kres==states_kp1res[s2][1:],axis=1) == True )[0][0]
+                    tmp_stat = 1.
+                    tmp += Pkres[0][ind][indp]
+                else:
+                    states = get_poss_states(Nsum)
+                    for state in states:
+                        state_full = np.hstack( (states_kp1res[s1][Nfixed+1:],state) )
+                        ind = np.where( np.all(states_kres==state_full,axis=1) == True )[0][0]
+                        tmp_stat += Pkres_stat[0][ind]
+                        statesp = get_poss_states(Nsum)
+                        for statep in statesp:
+                            state_fullp = np.hstack( (states_kp1res[s2][Nfixed+1:],statep) )
+                            indp = np.where( np.all(states_kres==state_fullp,axis=1) == True )[0][0]
+                            tmp += Pkres[0][ind][indp]*Pkres_stat[0][ind]
+                end_fact = 1.
+                for ends in range(Nsum+1):
+                    if ( states_kp1res[s2][ends] == end_state ):
+                        end_fact *= 1.
+                    else:
+                        end_fact *= 0.
+                inp_bndry_cond[var] = end_fact*tmp/tmp_stat
+            else:
+                Nshift = 2*Ncorr-1-res
+                Nsum = (Ncorr-1)-Nshift
+                Nfixed = Nsum+Nshift
+                if ( Nsum == 0 ):
+                    ind = np.where( np.all(states_kres==states_kp1res[s1][:-1],axis=1) == True )[0][0]
+                    indp = np.where( np.all(states_kres==states_kp1res[s2][:-1],axis=1) == True )[0][0]
+                    tmp_stat = 1.
+                    tmp += Pkres[Nres-(Ncorr-1)-1][ind][indp]
+                else:
+                    states = get_poss_states(Nsum)
+                    for state in states:
+                        state_full = np.hstack( (state,states_kp1res[s1][:Nfixed]) )
+                        ind = np.where( np.all(states_kres==state_full,axis=1) == True )[0][0]
+                        tmp_stat += Pkres_stat[Nres-(Ncorr-1)-1][ind]
+                        statesp = get_poss_states(Nsum)
+                        for statep in statesp:
+                            state_fullp = np.hstack( (statep,states_kp1res[s2][:Nfixed]) )
+                            indp = np.where( np.all(states_kres==state_fullp,axis=1) == True )[0][0]
+                            tmp += Pkres[Nres-(Ncorr-1)-1][ind][indp]*Pkres_stat[Nres-(Ncorr-1)-1][ind]
+                end_fact = 1.
+                for ends in range(Nsum+1):
+                    if ( states_kp1res[s2][-1-ends] == end_state ):
+                        end_fact *= 1.
+                    else:
+                        end_fact *= 0.
+                inp_bndry_cond[var] = end_fact*tmp/tmp_stat
+
+'''
 for res in range(2*Ncorr):
     for s1 in range(len(states_kp1res)):
         for s2 in range(len(states_kp1res)):
@@ -513,9 +629,63 @@ for res in range(2*Ncorr):
                     P1_e0 = 1
                 eqns_bndry_cond.append( var - tmp*P1_e0*P1_e1/tmp_stat )
                 inp_bndry_cond[var] = tmp*P1_e0*P1_e1/tmp_stat
+'''
 
 # and the kres static prop
 # Pkres stat, boundary only
+inp_bndry_cond_kres_stat = {}
+for res in range(2*Ncorr):
+    for s1 in range(len(states_kres)):
+        var = Pkres_stat_end[res][s1]
+        tmp = 0.
+        if ( (res==0) or (res==2*Ncorr-1) ):
+            end_fact = 1.
+            for ends in range(Ncorr):
+                if ( states_kp1res[s1][ends] == end_state ):
+                    end_fact *= 1.
+                else:
+                    end_fact *= 0.
+            inp_bndry_cond_kres_stat[var] = end_fact
+        elif ( res < Ncorr ):
+            Nshift = res-1
+            Nsum = (Ncorr-1)-Nshift
+            if ( Nsum == 0 ):
+                raise ValueError('In boundary conditions for Pkres stat, Nsum==0, this should not happen!')
+            else:
+                states = get_poss_states(Nsum)
+                for state in states:
+                    Nfixed = Nsum+Nshift
+                    state_full = np.hstack( (states_kres[s1][Nfixed:],state) )
+                    ind = np.where( np.all(states_kres==state_full,axis=1) == True )[0][0]
+                    tmp += Pkres_stat[0][ind]
+            end_fact = 1.
+            for ends in range(Nsum):
+                if ( states_kres[s1][ends] == end_state ):
+                    end_fact *= 1.
+                else:
+                    end_fact *= 0.
+            inp_bndry_cond_kres_stat[var] = end_fact*tmp
+        else:
+            Nshift = (2*Ncorr-1)-(res+1)
+            Nsum = (Ncorr-1)-Nshift
+            if ( Nsum == 0 ):
+                raise ValueError('In boundary conditions for Pkres stat, Nsum==0, this should not happen!')
+            else:
+                states = get_poss_states(Nsum)
+                for state in states:
+                    Nfixed = Nsum+Nshift
+                    state_full = np.hstack( (state,states_kres[s1][:Nfixed]) )
+                    ind = np.where( np.all(states_kres==state_full,axis=1) == True )[0][0]
+                    tmp += Pkres_stat[Nres-(Ncorr-1)-1][ind]
+            end_fact = 1.
+            for ends in range(Nsum):
+                if ( states_kres[s1][-1-ends] == end_state ):
+                    end_fact *= 1.
+                else:
+                    end_fact *= 0.
+            inp_bndry_cond_kres_stat[var] = end_fact*tmp
+
+'''
 inp_bndry_cond_kres_stat = {}
 for res in range(2*Ncorr):
     for s1 in range(len(states_kres)):
@@ -548,9 +718,74 @@ for res in range(2*Ncorr):
             else:
                 P1_e0 = 1.
             inp_bndry_cond_kres_stat[var] = tmp*P1_e0
+'''
 
 # and the kres cond prob
 inp_bndry_cond_kres = {} # separate the cond prob from the static prob boundary conditions
+for res in range(2*Ncorr):
+    for s1 in range(len(states_kres)):
+        for s2 in range(len(states_kres)):
+            var = Pkres_end[res][s1][s2]
+            tmp = 0.
+            tmp_stat = 0.
+            if ( (res==0) or (res==2*Ncorr-1) ):
+                end_fact = 1.
+                for ends in range(Ncorr):
+                    if ( states_kres[s2][ends] == end_state ):
+                        end_fact *= 1.
+                    else:
+                        end_fact *= 0.
+                inp_bndry_cond_kres[var] = end_fact
+            elif ( res < Ncorr ):
+                Nshift = res-1
+                Nsum = (Ncorr-1)-Nshift
+                Nfixed = Nsum+Nshift
+                if ( Nsum == 0 ):
+                    raise ValueError('In boundary conditions for Pkres, Nsum==0, this should not happen!')
+                else:
+                    states = get_poss_states(Nsum)
+                    for state in states:
+                        state_full = np.hstack( (states_kres[s1][Nfixed:],state) )
+                        ind = np.where( np.all(states_kres==state_full,axis=1) == True )[0][0]
+                        tmp_stat += Pkres_stat[0][ind]
+                        statesp = get_poss_states(Nsum)
+                        for statep in statesp:
+                            state_fullp = np.hstack( (states_kres[s2][Nfixed:],statep) )
+                            indp = np.where( np.all(states_kres==state_fullp,axis=1) == True )[0][0]
+                            tmp += Pkres[0][ind][indp]*Pkres_stat[0][ind]
+                end_fact = 1.
+                for ends in range(Nsum):
+                    if ( states_kres[s2][ends] == end_state ):
+                        end_fact *= 1.
+                    else:
+                        end_fact *= 0.
+                inp_bndry_cond_kres[var] = end_fact*tmp/tmp_stat
+            else:
+                Nshift = (2*Ncorr-1)-(res+1)
+                Nsum = (Ncorr-1)-Nshift
+                Nfixed = Nsum+Nshift
+                if ( Nsum == 0 ):
+                    raise ValueError('In boundary conditions for Pkres, Nsum==0, this should not happen!')
+                else:
+                    states = get_poss_states(Nsum)
+                    for state in states:
+                        state_full = np.hstack( (state,states_kres[s1][:Nfixed]) )
+                        ind = np.where( np.all(states_kres==state_full,axis=1) == True )[0][0]
+                        tmp_stat += Pkres_stat[Nres-(Ncorr-1)-1][ind]
+                        statesp = get_poss_states(Nsum)
+                        for statep in statesp:
+                            state_fullp = np.hstack( (statep,states_kres[s2][:Nfixed]) )
+                            indp = np.where( np.all(states_kres==state_fullp,axis=1) == True )[0][0]
+                            tmp += Pkres[Nres-(Ncorr-1)-1][ind][indp]*Pkres_stat[Nres-(Ncorr-1)-1][ind]
+                end_fact = 1.
+                for ends in range(Nsum):
+                    if ( states_kres[s2][-1-ends] == end_state ):
+                        end_fact *= 1.
+                    else:
+                        end_fact *= 0.
+                inp_bndry_cond_kres[var] = end_fact*tmp/tmp_stat
+
+'''
 for res in range(2*Ncorr):
     for s1 in range(len(states_kres)):
         for s2 in range(len(states_kres)):
@@ -595,7 +830,7 @@ for res in range(2*Ncorr):
                 else:
                     P1_e0 = 1.
                 inp_bndry_cond_kres[var] = tmp*P1_e0/tmp_stat
-
+'''
 
 # initialize the model by assuming that the kp1res stat prob correspond to the kp1res model (i.e., no correlations beyond kp1 res)
 mu_eff_kp1res = []
@@ -675,8 +910,6 @@ else:
 
 # also replace permanent (i.e., not updated during the iterations) inputs
 eqns_Pkres = sub_inp( eqns_Pkres, inp_var )
-
-eqns_Pkres[1000]
 
 print 'starting the iterations...'
 

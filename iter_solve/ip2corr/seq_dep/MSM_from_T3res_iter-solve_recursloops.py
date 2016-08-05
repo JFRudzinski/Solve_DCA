@@ -461,7 +461,6 @@ for res in range(2*Ncorr):
                     P1_e0 = 1.
                 inp_bndry_cond_kres[var] = tmp*P1_e0/tmp_stat
 
-
 # initialize the model by assuming that the kp1res stat prob correspond to the kp1res model (i.e., no correlations beyond kp1 res)
 mu_eff_kp1res = []
 mu_eff_kres = []
@@ -538,8 +537,6 @@ eqns_Pkres = sub_inp( eqns_Pkres, inp_bndry_cond_kres )
 eqns_Pkres = sub_inp( eqns_Pkres, inp_bndry_cond_kres_stat )
 # also replace permanent inputs
 eqns_Pkres = sub_inp( eqns_Pkres, inp_var )
-
-eqns_Pkres[1000]
 
 print 'starting the iterations...'
 
